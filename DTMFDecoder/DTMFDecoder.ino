@@ -24,7 +24,7 @@
 // DTMF has in total 8 tones, the max being 1633Hz
 // this means that 4KHz sample rate are enough (2KHz Nyquist)
 #define TONES 8
-#define GOERTZEL_N 50
+#define GOERTZEL_N 128
 #define SAMPLING_RATE 4000.0
 
 // DTMF tones in Hz.

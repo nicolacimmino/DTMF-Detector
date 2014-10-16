@@ -103,7 +103,6 @@ void loop() {
   // on tones 0-3 and the other on tones 4-7 since
   // all DTMF symbols are made up of one tone from each
   // of  the two groups.
-  //
   int max_magnitude_a = 100;
   int max_magnitude_b = 100;
   byte max_symbol_a = NO_SYMBOL;

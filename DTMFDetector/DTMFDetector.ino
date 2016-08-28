@@ -40,11 +40,6 @@ const int tones_freq[TONES] = { 697, 770, 852, 941, 1209, 1336, 1477, 1633};
 
 // Precalculated coeffs to apply Goertzel
 float coeff[TONES];
-float Q1;
-float Q2;
-
-// The samples taken from the A/D.
-int sampledData[GOERTZEL_N];
 
 byte last_symbol = NO_SYMBOL;
 
@@ -73,76 +68,80 @@ void setup() {
 
 void loop() {
 
-  unsigned long sampleTime = millis();
+  float Q1;
+  float Q2;
 
+  // The samples taken from the A/D.
+  int sampledData[GOERTZEL_N];
+  
   // Sample at 4KHz
   long dcoffset = 0;
-  for (int ix = 0; ix < GOERTZEL_N; ix++)
+  for (int ixSample = 0; ixSample < GOERTZEL_N; ixSample++)
   {
-    sampledData[ix] = analogRead(A0); // 16uS
-    dcoffset += sampledData[ix];
+    sampledData[ixSample] = analogRead(A0); // 16uS
+    dcoffset += sampledData[ixSample];
     delayMicroseconds(234); // total 250uS -> 4KHz
   }
   dcoffset = dcoffset / GOERTZEL_N;
 
-  for (int ix = 0; ix < GOERTZEL_N; ix++)
+  // Remove DC offset so we are left with a signal
+  // around zero.
+  for (int ixSample = 0; ixSample < GOERTZEL_N; ixSample++)
   {
-    sampledData[ix] = sampledData[ix] - dcoffset;
+    sampledData[ixSample] = sampledData[ixSample] - dcoffset;
   }
 
-  int max_magnitude_a = 100;
-  int max_magnitude_b = 100;
-  byte max_symbol_a = NO_SYMBOL;
-  byte max_symbol_b = NO_SYMBOL;
+  int maxMagnitudeL = 100;
+  int maxMagnitudeH = 100;
+  byte maxSymbolL = NO_SYMBOL;
+  byte maxSymbolH = NO_SYMBOL;
 
   // Calculate Qs
   // (See the wikipedia article and https://github.com/jacobrosenthal/Goertzel)
   // Calculate the magnitude of each tone.
-  // We have here a double peak detector, one is acting
-  // on tones 0-3 and the other on tones 4-7 since
-  // all DTMF symbols are made up of one tone from each
-  // of  the two groups.
+  // We have here a double peak detector, one is acting on tones 0-3 and the other on tones 4-7 since
+  // all DTMF symbols are made up of one tone from each of  the two groups.
 
-  unsigned long snrl = 0;
-  for (int ix_t = 0; ix_t < TONES; ix_t++) {
+  unsigned long snrL = 0;
+  for (int ixTone = 0; ixTone < TONES; ixTone++) {
     Q2 = 0;
     Q1 = 0;
-    for (int ix = 0; ix < GOERTZEL_N; ix++)
+    for (int ixSample = 0; ixSample < GOERTZEL_N; ixSample++)
     {
-      float Q0 = coeff[ix_t] * Q1 - Q2 + (float) (sampledData[ix]);
+      float Q0 = coeff[ixTone] * Q1 - Q2 + (float) (sampledData[ixSample]);
       Q2 = Q1;
       Q1 = Q0;
     }
 
-    int magnitude = sqrt(Q1 * Q1 + Q2 * Q2 - coeff[ix_t] * Q1 * Q2);
+    int magnitude = sqrt(Q1 * Q1 + Q2 * Q2 - coeff[ixTone] * Q1 * Q2);
 
-    if (ix_t < 4)
+    if (ixTone < 4)
     {
-      snrl = snrl + magnitude;
-      if (magnitude > max_magnitude_a)
+      snrL = snrL + magnitude;
+      if (magnitude > maxMagnitudeL)
       {
-        max_magnitude_a = magnitude;
-        max_symbol_a = ix_t;
+        maxMagnitudeL = magnitude;
+        maxSymbolL = ixTone;
       }
     }
     else
     {
-      if (magnitude > max_magnitude_b)
+      if (magnitude > maxMagnitudeH)
       {
-        max_magnitude_b = magnitude;
-        max_symbol_b = ix_t;
+        maxMagnitudeH = magnitude;
+        maxSymbolH = ixTone;
       }
     }
   }
 
-  snrl = (snrl - max_magnitude_a) / (TONES / 2 - 1);
-  
+  snrL = (snrL - maxMagnitudeL) / (TONES / 2 - 1);
+
   // See http://en.wikipedia.org/wiki/Dual-tone_multi-frequency_signaling
   // for how the tones are arranged in the symbols matrix.
   byte dtmf_symbol = NO_SYMBOL;
-  if (max_symbol_a != NO_SYMBOL && max_symbol_b != NO_SYMBOL && snrl > 100)
+  if (maxSymbolL != NO_SYMBOL && maxSymbolH != NO_SYMBOL && snrL > 100)
   {
-    dtmf_symbol = (max_symbol_a * 4) + (max_symbol_b - 4);
+    dtmf_symbol = (maxSymbolL * 4) + (maxSymbolH - 4);
   }
 
   if (currentStatus == STATUS_WAITING_SYMBOL)
@@ -189,9 +188,6 @@ void loop() {
       delay(100);
     }
   }
-
-  //Serial.println(millis() - sampleTime);
-
 }
 
 

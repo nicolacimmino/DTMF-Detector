@@ -39,9 +39,9 @@ byte currentStatus = STATUS_WAITING_SYMBOL;
 const int tones_freq[TONES] = { 697, 770, 852, 941, 1209, 1336, 1477, 1633};
 
 // Precalculated coeffs to apply Goertzel
-int coeff[TONES];
-float Q1[TONES];
-float Q2[TONES];
+float coeff[TONES];
+float Q1;
+float Q2;
 
 // The samples taken from the A/D.
 int sampledData[GOERTZEL_N];
@@ -65,7 +65,7 @@ void setup() {
   // See http://en.wikipedia.org/wiki/Goertzel_algorithm
   for (int i = 0; i < TONES; i++) {
     float omega = (2.0 * PI * tones_freq[i]) / SAMPLING_RATE;
-    coeff[i] = 16000 * 2.0 * cos(omega);
+    coeff[i] = 2.0 * cos(omega);
   }
 
   delay(1000);
@@ -74,7 +74,7 @@ void setup() {
 void loop() {
 
   unsigned long sampleTime = millis();
-  
+
   // Sample at 4KHz
   long dcoffset = 0;
   for (int ix = 0; ix < GOERTZEL_N; ix++)
@@ -90,54 +90,57 @@ void loop() {
     sampledData[ix] = sampledData[ix] - dcoffset;
   }
 
-  // Clear prevous calculated Qs
-  for (int i = 0; i < TONES ; i++)
-  {
-    Q2[i] = 0;
-    Q1[i] = 0;
-  }
-
-  // Calculate Qs
-  // (See the wikipedia article and https://github.com/jacobrosenthal/Goertzel)
-  for (int ix = 0; ix < GOERTZEL_N; ix++)
-  {
-    for (int ix_s = 0; ix_s < TONES; ix_s++) {
-      float Q0 = (coeff[ix_s] / 16000.0f) * Q1[ix_s] - Q2[ix_s] + (float) (sampledData[ix]);
-      Q2[ix_s] = Q1[ix_s];
-      Q1[ix_s] = Q0;
-    }
-  }
-
-
-  // Calculate the magnitude of each tone.
-  // We have here a double peak detector, one is acting
-  // on tones 0-3 and the other on tones 4-7 since
-  // all DTMF symbols are made up of one tone from each
-  // of  the two groups.
   int max_magnitude_a = 100;
   int max_magnitude_b = 100;
   byte max_symbol_a = NO_SYMBOL;
   byte max_symbol_b = NO_SYMBOL;
 
-  for (byte i = 0; i < TONES; i++) {
-    int magnitude = sqrt(Q1[i] * Q1[i] + Q2[i] * Q2[i] - (coeff[i] / 16000.0f) * Q1[i] * Q2[i]);
-    if (i < 4 && magnitude > max_magnitude_a)
+  // Calculate Qs
+  // (See the wikipedia article and https://github.com/jacobrosenthal/Goertzel)
+  // Calculate the magnitude of each tone.
+  // We have here a double peak detector, one is acting
+  // on tones 0-3 and the other on tones 4-7 since
+  // all DTMF symbols are made up of one tone from each
+  // of  the two groups.
+
+  unsigned long snrl = 0;
+  for (int ix_t = 0; ix_t < TONES; ix_t++) {
+    Q2 = 0;
+    Q1 = 0;
+    for (int ix = 0; ix < GOERTZEL_N; ix++)
     {
-      max_magnitude_a = magnitude;
-      max_symbol_a = i;
+      float Q0 = coeff[ix_t] * Q1 - Q2 + (float) (sampledData[ix]);
+      Q2 = Q1;
+      Q1 = Q0;
     }
 
-    if (i > 3 && magnitude > max_magnitude_b)
+    int magnitude = sqrt(Q1 * Q1 + Q2 * Q2 - coeff[ix_t] * Q1 * Q2);
+
+    if (ix_t < 4)
     {
-      max_magnitude_b = magnitude;
-      max_symbol_b = i;
+      snrl = snrl + magnitude;
+      if (magnitude > max_magnitude_a)
+      {
+        max_magnitude_a = magnitude;
+        max_symbol_a = ix_t;
+      }
+    }
+    else
+    {
+      if (magnitude > max_magnitude_b)
+      {
+        max_magnitude_b = magnitude;
+        max_symbol_b = ix_t;
+      }
     }
   }
 
+  snrl = (snrl - max_magnitude_a) / (TONES / 2 - 1);
+  
   // See http://en.wikipedia.org/wiki/Dual-tone_multi-frequency_signaling
   // for how the tones are arranged in the symbols matrix.
   byte dtmf_symbol = NO_SYMBOL;
-  if (max_symbol_a != NO_SYMBOL && max_symbol_b != NO_SYMBOL)
+  if (max_symbol_a != NO_SYMBOL && max_symbol_b != NO_SYMBOL && snrl > 100)
   {
     dtmf_symbol = (max_symbol_a * 4) + (max_symbol_b - 4);
   }
@@ -161,7 +164,7 @@ void loop() {
       currentStatus = STATUS_WAITING_SYMBOL_REPEAT2;
       delay(30);
     }
-    else 
+    else
     {
       currentStatus = STATUS_WAITING_SYMBOL;
     }
@@ -170,10 +173,10 @@ void loop() {
   {
     if (last_symbol == dtmf_symbol)
     {
-      Serial.println("123A456B789C*0#D"[dtmf_symbol]);
+      Serial.print("123A456B789C*0#D"[dtmf_symbol]);
       currentStatus = STATUS_WAITING_INTERSYMBOL;
     }
-    else 
+    else
     {
       currentStatus = STATUS_WAITING_SYMBOL;
     }
@@ -187,8 +190,8 @@ void loop() {
     }
   }
 
-  Serial.println(millis()-sampleTime);
-  
+  //Serial.println(millis() - sampleTime);
+
 }
 
 

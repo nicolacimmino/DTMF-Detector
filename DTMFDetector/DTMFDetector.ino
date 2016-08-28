@@ -14,6 +14,8 @@
 //    You should have received a copy of the GNU General Public License
 //    along with this program.  If not, see http://www.gnu.org/licenses/.
 //
+// I referred to https://github.com/jacobrosenthal/Goertzel for the Goertzel 
+//  implementation.
 
 // Marker for invalid symbol detected.
 #define NO_SYMBOL 255
@@ -86,6 +88,8 @@ void loop() {
     Q1[i] = 0;
   }
   
+  // Calculate Qs
+  // (See the wikipedia article and https://github.com/jacobrosenthal/Goertzel)
   for (int ix = 0; ix < GOERTZEL_N; ix++)
   {
     for(int ix_s=0;ix_s < TONES;ix_s++) {
@@ -101,7 +105,6 @@ void loop() {
   // on tones 0-3 and the other on tones 4-7 since
   // all DTMF symbols are made up of one tone from each
   // of  the two groups.
-  //
   int max_magnitude_a = 100;
   int max_magnitude_b = 100;
   byte max_symbol_a = NO_SYMBOL;
@@ -126,7 +129,7 @@ void loop() {
   if(max_symbol_a != NO_SYMBOL && max_symbol_b != NO_SYMBOL)
   {
      // See http://en.wikipedia.org/wiki/Dual-tone_multi-frequency_signaling
-     // for how the tones are disposed in the symbols matrix.
+     // for how the tones are arranged in the symbols matrix.
      byte dtmf_symbol = (max_symbol_a*4)+(max_symbol_b-4);
      if(last_symbol != dtmf_symbol)
      {

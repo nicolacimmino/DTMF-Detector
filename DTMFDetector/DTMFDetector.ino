@@ -1,5 +1,5 @@
 // DTMFDetector implements a detector for DTMF tones.
-//  Copyright (C) 2014 Nicola Cimmino
+//  Copyright (C) 2014/2016 Nicola Cimmino
 //
 //    This program is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU General Public License as published by
@@ -31,14 +31,12 @@
 const int tones_freq[TONES] = { 697, 770, 852, 941, 1209, 1336, 1477, 1633};
 
 // Precalculated coeffs to apply Goertzel
-float coeff[TONES];
+int coeff[TONES];
 float Q1[TONES];
 float Q2[TONES];
 
-// The samples taken from the A/D. The A/D results are
-// in fact 10-bits but we use a byte to save memory
-// as we never reach values > 256.
-byte sampledData[GOERTZEL_N];
+// The samples taken from the A/D.
+int sampledData[GOERTZEL_N];
 
 byte last_symbol = NO_SYMBOL;
 
@@ -51,10 +49,6 @@ void setup() {
   _SFR_BYTE(ADCSRA) &= ~_BV(ADPS1); // Clear ADPS1
   _SFR_BYTE(ADCSRA) &= ~_BV(ADPS0); // Clear ADPS0
   
-  // This sets the ADC analog reference to internally
-  //  generated 1.1V to increase A/D resolution.
-  analogReference(INTERNAL);
-
   // Power up the amplifier.
   pinMode(AMPLI_PWR_PIN, OUTPUT);
   digitalWrite(AMPLI_PWR_PIN,HIGH);
@@ -63,7 +57,7 @@ void setup() {
   // See http://en.wikipedia.org/wiki/Goertzel_algorithm
   for(int i = 0;i < TONES;i++) {
     float omega = (2.0 * PI * tones_freq[i]) / SAMPLING_RATE;
-    coeff[i] = 2.0 * cos(omega);
+    coeff[i] = 16000 * 2.0 * cos(omega);
   }
 
 }
@@ -71,12 +65,20 @@ void setup() {
 void loop() {
   
   // Sample at 4KHz 
+  long dcoffset = 0;
   for (int ix = 0; ix < GOERTZEL_N; ix++)
   {
-    sampledData[ix] = analogRead(A0)&0xFF; // 17uS
-    delayMicroseconds(233); // total 250uS -> 4KHz
+    sampledData[ix] = analogRead(A0); // 16uS
+    dcoffset += sampledData[ix];
+    delayMicroseconds(234); // total 250uS -> 4KHz
   }
-  
+  dcoffset = dcoffset / GOERTZEL_N;
+
+  for (int ix = 0; ix < GOERTZEL_N; ix++)
+  {
+    sampledData[ix] = sampledData[ix] - dcoffset;
+  }
+    
   // Clear prevous calculated Qs
   for(int i=0; i<TONES ; i++) 
   {
@@ -87,7 +89,7 @@ void loop() {
   for (int ix = 0; ix < GOERTZEL_N; ix++)
   {
     for(int ix_s=0;ix_s < TONES;ix_s++) {
-      float Q0 = coeff[ix_s] * Q1[ix_s] - Q2[ix_s] + (float) (sampledData[ix]);
+      float Q0 = (coeff[ix_s]/16000.0f) * Q1[ix_s] - Q2[ix_s] + (float) (sampledData[ix]);
       Q2[ix_s] = Q1[ix_s];
       Q1[ix_s] = Q0;
     }
@@ -106,7 +108,7 @@ void loop() {
   byte max_symbol_b = NO_SYMBOL;
   
   for(byte i=0;i < TONES;i++) {
-    int magnitude = sqrt(Q1[i]*Q1[i] + Q2[i]*Q2[i] - coeff[i]*Q1[i]*Q2[i]);
+    int magnitude = sqrt(Q1[i]*Q1[i] + Q2[i]*Q2[i] - (coeff[i]/16000.0f)*Q1[i]*Q2[i]);
     if(i<4 && magnitude > max_magnitude_a)
     {
       max_magnitude_a = magnitude;
@@ -119,7 +121,7 @@ void loop() {
       max_symbol_b = i;
     }
   }
-  
+
   // There is a valid symbol
   if(max_symbol_a != NO_SYMBOL && max_symbol_b != NO_SYMBOL)
   {
@@ -128,7 +130,8 @@ void loop() {
      byte dtmf_symbol = (max_symbol_a*4)+(max_symbol_b-4);
      if(last_symbol != dtmf_symbol)
      {
-       Serial.print("123A456B789C*0#D"[dtmf_symbol]);
+       Serial.println("123A456B789C*0#D"[dtmf_symbol]);
+       Serial.println(max_magnitude_a-max_magnitude_b);
        last_symbol=dtmf_symbol;
      }
   }

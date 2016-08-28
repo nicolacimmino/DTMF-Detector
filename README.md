@@ -1,5 +1,5 @@
 
-This is a first attempt at a DTMF decoder using the Goertzel alghorithm. The hardware can be seen below, it's an Arduino Nano with a small microphone capsule and a pre-amplifier.
+This is a first attempt at a DTMF detector using the Goertzel alghorithm. The hardware can be seen below, it's an Arduino Nano with a small microphone capsule and a pre-amplifier.
 
 ![Proto](documentation/proto.png)
 

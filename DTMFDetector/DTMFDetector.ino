@@ -47,11 +47,6 @@ void setup() {
 
   Serial.begin(115200);
 
-  // Set ADC prescaler to 16
-  _SFR_BYTE(ADCSRA) |=  _BV(ADPS2); // Set ADPS2
-  _SFR_BYTE(ADCSRA) &= ~_BV(ADPS1); // Clear ADPS1
-  _SFR_BYTE(ADCSRA) &= ~_BV(ADPS0); // Clear ADPS0
-
   // Power up the amplifier.
   pinMode(AMPLI_PWR_PIN, OUTPUT);
   digitalWrite(AMPLI_PWR_PIN, HIGH);
@@ -78,9 +73,9 @@ void loop() {
   long dcoffset = 0;
   for (int ixSample = 0; ixSample < GOERTZEL_N; ixSample++)
   {
-    sampledData[ixSample] = analogRead(A0); // 16uS
+    sampledData[ixSample] = analogRead(A0); // 112uS
     dcoffset += sampledData[ixSample];
-    delayMicroseconds(234); // total 250uS -> 4KHz
+    delayMicroseconds(138); // total 250uS -> 4KHz
   }
   dcoffset = dcoffset / GOERTZEL_N;
 

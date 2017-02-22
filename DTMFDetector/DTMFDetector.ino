@@ -1,5 +1,5 @@
 // DTMFDetector implements a detector for DTMF tones.
-//  Copyright (C) 2014/2016 Nicola Cimmino
+//  Copyright (C) 2014-2017 Nicola Cimmino
 //
 //    This program is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU General Public License as published by
@@ -42,6 +42,7 @@ const int tones_freq[TONES] = { 697, 770, 852, 941, 1209, 1336, 1477, 1633};
 float coeff[TONES];
 
 byte last_symbol = NO_SYMBOL;
+byte symbolRepeatCount = 0;
 
 void setup() {
 
@@ -144,38 +145,24 @@ void loop() {
     // There is a valid symbol
     if (dtmf_symbol != NO_SYMBOL)
     {
+      
+      if(last_symbol != NO_SYMBOL && last_symbol != dtmf_symbol) {
+        symbolRepeatCount = 0;
+      } else {
+        symbolRepeatCount++;  
+      }
+      
+      if(symbolRepeatCount == 2) {
+        Serial.print("123A456B789C*0#D"[dtmf_symbol]);
+        currentStatus = STATUS_WAITING_INTERSYMBOL;
+      }
+
       last_symbol = dtmf_symbol;
-      currentStatus = STATUS_WAITING_SYMBOL_REPEAT;
       delay(30);
     }
   }
-  else if (currentStatus == STATUS_WAITING_SYMBOL_REPEAT)
-  {
-    // There is a valid symbol
-    if (last_symbol == dtmf_symbol)
-    {
-      last_symbol = dtmf_symbol;
-      currentStatus = STATUS_WAITING_SYMBOL_REPEAT2;
-      delay(30);
-    }
-    else
-    {
-      currentStatus = STATUS_WAITING_SYMBOL;
-    }
-  }
-  else if (currentStatus == STATUS_WAITING_SYMBOL_REPEAT2)
-  {
-    if (last_symbol == dtmf_symbol)
-    {
-      Serial.print("123A456B789C*0#D"[dtmf_symbol]);
-      currentStatus = STATUS_WAITING_INTERSYMBOL;
-    }
-    else
-    {
-      currentStatus = STATUS_WAITING_SYMBOL;
-    }
-  }
-  else if (currentStatus == STATUS_WAITING_INTERSYMBOL)
+
+  if (currentStatus == STATUS_WAITING_INTERSYMBOL)
   {
     if (dtmf_symbol == NO_SYMBOL)
     {
